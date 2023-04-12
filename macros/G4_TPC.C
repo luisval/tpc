@@ -42,68 +42,18 @@ R__LOAD_LIBRARY(libtpc.so)
 R__LOAD_LIBRARY(libtpccalib.so)
 R__LOAD_LIBRARY(libqa_modules.so)
 
-namespace Enable
-{
-  bool TPC = false;
-  bool TPC_ABSORBER = false;
-  bool TPC_OVERLAPCHECK = false;
-  bool TPC_CELL = false;
-  bool TPC_CLUSTER = false;
-  bool TPC_QA = false;
+//____________________________________________________________________                                                                 \
+                                                                                                                                         
 
-  bool TPC_ENDCAP = true;
+//bool G4TPC::ENABLE_DIRECT_LASER_HITS=true;
 
-  int TPC_VERBOSITY = 0;
-}  // namespace Enable
+//_______________________________________________________________________                                                               
 
-namespace G4TPC
-{
-  int n_tpc_layer_inner = 16;
-  int tpc_layer_rphi_count_inner = 1152;
-  int n_tpc_layer_mid = 16;
-  int n_tpc_layer_outer = 16;
-  int n_gas_layer = n_tpc_layer_inner + n_tpc_layer_mid + n_tpc_layer_outer;
-  double tpc_outer_radius = 77. + 2.;
 
-  // drift velocity is set here for all relevant modules
-  double tpc_drift_velocity_sim= 8.0 / 1000.0;  // cm/ns   // this is the Ne version of the gas
-//  double tpc_drift_velocity_reco now set in GlobalVariables.C
-//  double tpc_drift_velocity_reco= 8.0 / 1000.0;  // cm/ns   // this is the Ne version of the gas
-
-  // use simple clusterizer
-  bool USE_SIMPLE_CLUSTERIZER = false;
-
-  // distortions
-  bool ENABLE_STATIC_DISTORTIONS = false;
-  auto static_distortion_filename = std::string(getenv("CALIBRATIONROOT")) + "/distortion_maps/static_only.distortion_map.hist.root";
-
-  bool ENABLE_TIME_ORDERED_DISTORTIONS = false;
-  std::string time_ordered_distortion_filename = std::string(getenv("CALIBRATIONROOT")) + "/distortion_maps/TimeOrderedDistortions.root";
-
-  // distortion corrections
-  bool ENABLE_CORRECTIONS = false;
-  auto correction_filename = std::string(getenv("CALIBRATIONROOT")) + "/distortion_maps/static_only_inverted_10-new.root";
-
-  // enable central membrane g4hits generation
-  bool ENABLE_CENTRAL_MEMBRANE_HITS = false;
-  
-  // enable direct laser g4hits generation
-  bool ENABLE_DIRECT_LASER_HITS = true;
-
-  // save histograms
-  bool DIRECT_LASER_SAVEHISTOGRAMS = true;
-
-  // do cluster <-> hit association
-  bool DO_HIT_ASSOCIATION = true;
-  
-  // space charge calibration output file
-  std::string DIRECT_LASER_ROOTOUTPUT_FILENAME = "TpcSpaceChargeMatrices.root";
-  std::string DIRECT_LASER_HISTOGRAMOUTPUT_FILENAME="TpcDirectLaserReconstruction_theta0_180_phi0_360_theta0.3125_phi0.3125_laser1.root";
-  
-}  // namespace G4TPC
 
 void TPCInit()
 {
+ 
   BlackHoleGeometry::max_radius = std::max(BlackHoleGeometry::max_radius, G4TPC::tpc_outer_radius);
 
   if (Enable::TPC_ENDCAP)
@@ -188,6 +138,12 @@ void TPC_Cells()
   int verbosity = std::max(Enable::VERBOSITY, Enable::TPC_VERBOSITY);
   auto se = Fun4AllServer::instance();
 
+  //____________________________________________________________________                                                                  
+
+  //bool G4TPC::ENABLE_DIRECT_LASER_HITS=true;
+
+  //_______________________________________________________________________  
+
   // central membrane G4Hit generation
   if( G4TPC::ENABLE_CENTRAL_MEMBRANE_HITS )
   {
@@ -205,13 +161,10 @@ void TPC_Cells()
     // setup phi and theta steps
     /* use 5deg steps */
     static constexpr double deg_to_rad = M_PI/180.;
-    float sing_theta, sing_phi;
-    sing_theta=31;
-    sing_phi=105;
-    directLaser->SetPhiStepping(1152, 0*deg_to_rad, 360*deg_to_rad );//Automatic stepping
-    directLaser->SetThetaStepping(576 , 0*deg_to_rad, 180*deg_to_rad );//Automatic stepping
-    // directLaser->SetArbitraryThetaPhi(sing_theta*deg_to_rad,sing_phi*deg_to_rad);//Manual stepping
-    directLaser->SetDirectLaserAuto( true );//Automatic stepping
+       directLaser->SetPhiStepping( 576, 0*deg_to_rad, 360*deg_to_rad );
+       directLaser->SetThetaStepping( 144, 0*deg_to_rad, 90*deg_to_rad );
+       directLaser->SetDirectLaserAuto( true );
+    // directLaser->SetArbitraryThetaPhi(120.*deg_to_rad,20.*deg_to_rad);
     directLaser->set_double_param("drift_velocity", G4TPC::tpc_drift_velocity_sim);
     se->registerSubsystem(directLaser);
   }
@@ -275,8 +228,7 @@ void TPC_Cells()
   digitpc->Verbosity(verbosity);
   cout << " Tpc digitizer: Setting ENC to " << ENC << " ADC threshold to " << ADC_threshold
        << " maps+Intt layers set to " << G4MVTX::n_maps_layer + G4INTT::n_intt_layer << endl;
-
-  digitpc->set_skip_noise_flag(true); //Skip noise
+  digitpc ->set_skip_noise_flag(true);
   se->registerSubsystem(digitpc);
 
 }

@@ -25,8 +25,9 @@ void mul_laser_counts(int run = 190930){ //this input doesn't matter - but maybe
   //////////////////arrray of step sizes in theta and phi///////////////////
 
 
-  Float_t step_sizes[5] = {0.625, 1.25, 2.5 , 5 , 10};                                  
-                                                                                                                
+  //  Float_t step_sizes[6] = {0.3125, 0.625, 1.25, 2.5 , 5 , 10};                                  
+  Float_t step_sizes[5] = {0.625, 1.25, 2.5 , 5 , 10};
+                                                                                                               
   ////////////////Loop over theta and phi steps/////////////////////////////
   for (Int_t i = 0; i < 5; i++ )
     {          
@@ -34,8 +35,9 @@ void mul_laser_counts(int run = 190930){ //this input doesn't matter - but maybe
 	{ 
 	  // cout << "i :  " << i << " j: "<< j<< endl;
 
-	  const TString filename( Form( "TpcDirectLaserReconstruction_theta0_180_phi0_360_theta%g_phi%g_laser1.root", step_sizes[i],step_sizes[j] ) );
-	  std::cout << "current file: " << filename << std::endl;
+	  //  const TString filename( Form( "TpcDirectLaserReconstruction_theta0_180_phi0_360_theta%g_phi%g_laser1.root", step_sizes[i],step_sizes[j] ) );
+	  const TString filename( Form( "G4sPHENIX_g4svtx_eval_theta0_90_phi0_360_theta%g_phi%g_laser1.root", step_sizes[i],step_sizes[j] ) );
+           std::cout << "current file: " << filename << std::endl;
 	  TFile *infile = new TFile(filename);
 	  
 	   if (infile->IsZombie()) continue;

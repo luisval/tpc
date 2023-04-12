@@ -18,6 +18,7 @@
 #include <G4_Production.C>
 #include <G4_TopoClusterReco.C>
 #include <G4_Tracking.C>
+#include <G4_TrackingDiagnostics.C>
 #include <G4_User.C>
 #include <QA.C>
 
@@ -33,10 +34,9 @@
 #include <phool/PHRandomSeed.h>
 #include <phool/recoConsts.h>
 
-#include <tpccalib/TpcDirectLaserReconstruction.h>
 R__LOAD_LIBRARY(libfun4all.so)
 R__LOAD_LIBRARY(libffamodules.so)
-R__LOAD_LIBRARY(libtpccalib.so)
+
 // For HepMC Hijing
 // try inputFile = /sphenix/sim/sim01/sphnxpro/sHijing_HepMC/sHijing_0-12fm.dat
 
@@ -49,7 +49,7 @@ int Fun4All_G4_sPHENIX(
     const string &outdir = ".")
 {
   Fun4AllServer *se = Fun4AllServer::instance();
-  se->Verbosity(1);
+  se->Verbosity(0);
 
   //Opt to print all random seed used for debugging reproducibility. Comment out to reduce stdout prints.
   PHRandomSeed::Verbosity(1);
@@ -95,6 +95,9 @@ int Fun4All_G4_sPHENIX(
   Input::SIMPLE = false;
   // Input::SIMPLE_NUMBER = 2; // if you need 2 of them
   // Input::SIMPLE_VERBOSITY = 1;
+
+  // Enable this is emulating the nominal pp/pA/AA collision vertex distribution
+  // Input::BEAM_CONFIGURATION = Input::AA_COLLISION; // Input::AA_COLLISION (default), Input::pA_COLLISION, Input::pp_COLLISION
 
   //  Input::PYTHIA6 = true;
 
@@ -183,13 +186,13 @@ int Fun4All_G4_sPHENIX(
   // pythia6
   if (Input::PYTHIA6)
   {
-    //! apply sPHENIX nominal beam parameter with 2mrad crossing as defined in sPH-TRG-2020-001
+    //! Nominal collision geometry is selected by Input::BEAM_CONFIGURATION
     Input::ApplysPHENIXBeamParameter(INPUTGENERATOR::Pythia6);
   }
   // pythia8
   if (Input::PYTHIA8)
   {
-    //! apply sPHENIX nominal beam parameter with 2mrad crossing as defined in sPH-TRG-2020-001
+    //! Nominal collision geometry is selected by Input::BEAM_CONFIGURATION
     Input::ApplysPHENIXBeamParameter(INPUTGENERATOR::Pythia8);
   }
 
@@ -200,7 +203,7 @@ int Fun4All_G4_sPHENIX(
 
   if (Input::HEPMC)
   {
-    //! apply sPHENIX nominal beam parameter with 2mrad crossing as defined in sPH-TRG-2020-001
+    //! Nominal collision geometry is selected by Input::BEAM_CONFIGURATION
     Input::ApplysPHENIXBeamParameter(INPUTMANAGER::HepMCInputManager);
 
     // optional overriding beam parameters
@@ -223,7 +226,7 @@ int Fun4All_G4_sPHENIX(
   }
   if (Input::PILEUPRATE > 0)
   {
-    //! apply sPHENIX nominal beam parameter with 2mrad crossing as defined in sPH-TRG-2020-001
+    //! Nominal collision geometry is selected by Input::BEAM_CONFIGURATION
     Input::ApplysPHENIXBeamParameter(INPUTMANAGER::HepMCPileupInputManager);
   }
   // register all input generators with Fun4All
@@ -277,10 +280,10 @@ int Fun4All_G4_sPHENIX(
 
   // Enable::BBC = true;
   // Enable::BBC_SUPPORT = true; // save hist in bbc support structure
-  Enable::BBCFAKE = true;  // Smeared vtx and t0, use if you don't want real BBC in simulation
+  Enable::BBCFAKE = false;  // Smeared vtx and t0, use if you don't want real BBC in simulation
 
-  Enable::PIPE = true;
-  Enable::PIPE_ABSORBER = true;
+  Enable::PIPE = false;
+  Enable::PIPE_ABSORBER = false;
 
   // central tracking
   Enable::MVTX = true;
@@ -309,6 +312,11 @@ int Fun4All_G4_sPHENIX(
   Enable::TRACKING_TRACK = (Enable::MICROMEGAS_CLUSTER && Enable::TPC_CLUSTER && Enable::INTT_CLUSTER && Enable::MVTX_CLUSTER) && true;
   Enable::TRACKING_EVAL = Enable::TRACKING_TRACK && true;
   Enable::TRACKING_QA = Enable::TRACKING_TRACK && Enable::QA && true;
+
+  //Additional tracking tools 
+  //Enable::TRACKING_DIAGNOSTICS = Enable::TRACKING_TRACK && true;
+  //G4TRACKING::filter_conversion_electrons = true;
+
 
   //  cemc electronics + thin layer of W-epoxy to get albedo from cemc
   //  into the tracking, cannot run together with CEMC
@@ -342,6 +350,7 @@ int Fun4All_G4_sPHENIX(
   Enable::HCALOUT_QA = Enable::HCALOUT_CLUSTER && Enable::QA && false;
 
   Enable::EPD = false;
+  Enable::EPD_TILE = Enable::EPD && false;
 
   Enable::BEAMLINE = false;
 //  Enable::BEAMLINE_ABSORBER = true;  // makes the beam line magnets sensitive volumes
@@ -354,7 +363,7 @@ int Fun4All_G4_sPHENIX(
 
   //! forward flux return plug door. Out of acceptance and off by default.
   //Enable::PLUGDOOR = true;
-  Enable::PLUGDOOR_ABSORBER = true;
+  Enable::PLUGDOOR_ABSORBER = false;
 
   Enable::GLOBAL_RECO = (Enable::BBCFAKE || Enable::TRACKING_TRACK) && true;
   //Enable::GLOBAL_FASTSIM = true;
@@ -380,7 +389,7 @@ int Fun4All_G4_sPHENIX(
   // particle flow jet reconstruction - needs topoClusters!
   Enable::PARTICLEFLOW = Enable::TOPOCLUSTER && true;
   // centrality reconstruction
-  Enable::CENTRALITY = true;
+  Enable::CENTRALITY = false;
 
   // new settings using Enable namespace in GlobalVariables.C
   Enable::BLACKHOLE = true;
@@ -459,6 +468,12 @@ int Fun4All_G4_sPHENIX(
   if (Enable::CEMC_TOWER) CEMC_Towers();
   if (Enable::CEMC_CLUSTER) CEMC_Clusters();
 
+  //--------------
+  // EPD tile reconstruction
+  //--------------
+
+  if (Enable::EPD_TILE) EPD_Tiles();
+
   //-----------------------------
   // HCAL towering and clustering
   //-----------------------------
@@ -488,6 +503,16 @@ int Fun4All_G4_sPHENIX(
   {
     Tracking_Reco();
   }
+
+  if(Enable::TRACKING_DIAGNOSTICS)
+    {
+      const std::string kshortFile = "./kshort_" + outputFile;
+      const std::string residualsFile = "./residuals_" + outputFile;
+ 
+      G4KshortReconstruction(kshortFile);
+      seedResiduals(residualsFile);
+    }
+
   //-----------------
   // Global Vertexing
   //-----------------
@@ -557,6 +582,10 @@ int Fun4All_G4_sPHENIX(
   if (Enable::DSTREADER) G4DSTreader(outputroot + "_DSTReader.root");
 
   if (Enable::USER) UserAnalysisInit();
+
+  // Writes electrons from conversions to a new track map on the node tree
+  // the ntuple file is for diagnostics, it is produced only if the flag is set in G4_Tracking.C
+  if(G4TRACKING::filter_conversion_electrons) Filter_Conversion_Electrons(outputroot + "_secvert_ntuple.root");
 
   //======================
   // Run KFParticle on evt
@@ -651,8 +680,7 @@ int Fun4All_G4_sPHENIX(
   //-----
 
   se->End();
-  // se->PrintTimer();//Prints time it takes for doing stuff  
-std::cout << "All done" << std::endl;
+  std::cout << "All done" << std::endl;
   delete se;
   if (Enable::PRODUCTION)
   {

@@ -37,6 +37,7 @@ R__LOAD_LIBRARY(libtrackeralign.so)
 #include <trackreco/PHTruthSiliconAssociation.h>
 #include <trackreco/PHTruthTrackSeeding.h>
 #include <trackreco/PHTruthVertexing.h>
+#include <trackreco/SecondaryVertexFinder.h>
 
 #include <tpc/TpcLoadDistortionCorrection.h>
 
@@ -50,45 +51,6 @@ R__LOAD_LIBRARY(libtrackeralign.so)
 #include <qa_modules/QAG4SimulationVertex.h>
 
 #include <fun4all/Fun4AllServer.h>
-
-namespace Enable
-{
-  bool TRACKING_TRACK = false;
-  bool TRACKING_EVAL = false;
-  int TRACKING_VERBOSITY = 0;
-  bool TRACKING_QA = false;
-}  // namespace Enable
-
-namespace G4TRACKING
-{
-  // Space Charge calibration flag
-  bool SC_CALIBMODE = false;                                            // this is anded with G4TPC::ENABLE_DISTORTIONS in TrackingInit()
-  bool SC_USE_MICROMEGAS = true;
-  bool SC_SAVEHISTOGRAMS = false;
-  double SC_COLLISIONRATE = 50e3;                                      // leave at 50 KHz for now, scaling of distortion map not implemented yet
-  std::string SC_ROOTOUTPUT_FILENAME = "TpcSpaceChargeMatrices.root";  // space charge calibration output file
-  std::string SC_HISTOGRAMOUTPUT_FILENAME = "TpcResiduals.root"; // space charge calibration output file
-
-  // Vertexing
-  bool g4eval_use_initial_vertex = true;  // if true, g4eval uses initial vertices in SvtxVertexMap, not final vertices in SvtxVertexMapRefit
-  
-  // Truth seeding options for diagnostics (can use any or all)
-  bool use_truth_silicon_seeding = false;     // if true runs truth silicon seeding instead of acts silicon seeding
-  bool use_truth_tpc_seeding = false;         // if true runs truth silicon seeding instead of reco TPC seeding
-  bool use_truth_si_matching = false;         // if true, associates silicon clusters using best truth track match to TPC seed tracks - for diagnostics only
-                                              // Full truth track seeding
-  bool use_full_truth_track_seeding = false;  // makes track seeds using truth info, used for both Acts and Genfit
-  bool use_truth_vertexing = false;           // if true runs truth vertexing, if false runs PHSimpleVertexFinder
-
-  // Runs a converter from TrackSeed object to SvtxTrack object to enable
-  // use of the various evaluation tools already available
-  bool convert_seeds_to_svtxtracks = false;
-
-  // Flag to run commissioning seeding workflow with tuned parameters for
-  // misaligned + distorted tracks
-  bool use_alignment = false;
-
-}  // namespace G4TRACKING
 
 void TrackingInit()
 {
@@ -295,8 +257,7 @@ void vertexing()
     auto vtxfinder = new PHSimpleVertexFinder;
     vtxfinder->Verbosity(verbosity);
     se->registerSubsystem(vtxfinder);
-  }
-  
+  }  
 }
 
 void Tracking_Reco_TrackFit()
@@ -313,13 +274,13 @@ void Tracking_Reco_TrackFit()
   // perform final track fit with ACTS
   auto actsFit = new PHActsTrkFitter;
   actsFit->Verbosity(verbosity);
-  actsFit->commissioning(G4TRACKING::use_alignment);
+  //actsFit->commissioning(G4TRACKING::use_alignment);
   actsFit->set_cluster_version(G4TRACKING::cluster_version);
   // in calibration mode, fit only Silicons and Micromegas hits
   actsFit->fitSiliconMMs(G4TRACKING::SC_CALIBMODE);
-  actsFit->setUseMicromegas(G4TRACKING::SC_USE_MICROMEGAS);
   actsFit->set_pp_mode(TRACKING::pp_mode);
   se->registerSubsystem(actsFit);
+  
   
   if (G4TRACKING::SC_CALIBMODE)
   {
@@ -328,6 +289,7 @@ void Tracking_Reco_TrackFit()
     * store in dedicated structure for distortion correction
     */
     auto residuals = new PHTpcResiduals;
+    residuals->setClusterVersion(G4TRACKING::cluster_version);
     residuals->setOutputfile(G4TRACKING::SC_ROOTOUTPUT_FILENAME);
     residuals->setSavehistograms( G4TRACKING::SC_SAVEHISTOGRAMS );
     residuals->setHistogramOutputfile( G4TRACKING::SC_HISTOGRAMOUTPUT_FILENAME );
@@ -362,6 +324,8 @@ void Tracking_Reco_TrackFit()
     auto projection = new PHActsTrackProjection;
     projection->Verbosity(verbosity);
     se->registerSubsystem(projection);
+    
+
   }
   
 }
@@ -468,12 +432,14 @@ void alignment(std::string datafilename = "mille_output_data_file",
   mille->Verbosity(verbosity);
   mille->set_datafile_name(datafilename + ".bin");
   mille->set_steeringfile_name(steeringfilename + ".txt");
+  mille->set_cluster_version(G4TRACKING::cluster_version);
   se->registerSubsystem(mille);
 
   auto helical = new HelicalFitter;
-  helical->Verbosity(verbosity);
+  helical->Verbosity(0);
   helical->set_datafile_name(datafilename + "_helical.bin");
   helical->set_steeringfile_name(steeringfilename + "_helical.txt");
+  helical->set_cluster_version(G4TRACKING::cluster_version);
   se->registerSubsystem(helical);
 
 }
@@ -502,12 +468,26 @@ void Tracking_Reco()
       Tracking_Reco_TrackFit();
     }
 
+
   if(G4TRACKING::use_alignment)
     {
       alignment();
     }
 
 }
+
+void  Filter_Conversion_Electrons(std::string ntuple_outfile)
+{
+  Fun4AllServer* se = Fun4AllServer::instance();
+  SecondaryVertexFinder* secvert = new SecondaryVertexFinder;
+  secvert->Verbosity(0);
+  secvert->set_write_electrons_node(true);  // writes copy of filtered electron tracks to node tree
+  secvert->set_write_ntuple(false);  // writes ntuple for tuning cuts
+  secvert->setDecayParticleMass( 0.000511);  // for electrons
+  secvert->setOutfileName(ntuple_outfile);
+  se->registerSubsystem(secvert);
+}
+
 
 void build_truthreco_tables()
 {
